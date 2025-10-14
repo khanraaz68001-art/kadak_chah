@@ -102,3 +102,75 @@ export const formatReadableDate = (value?: string | null): string => {
     day: "numeric",
   });
 };
+
+export type CustomerTransactionSummary = {
+  totalSales: number;
+  totalCollections: number;
+  outstanding: number;
+  transactions: number;
+};
+
+export type TransactionSummaryResult = {
+  totals: {
+    totalSales: number;
+    totalCollections: number;
+    outstanding: number;
+  };
+  perCustomer: Record<string, CustomerTransactionSummary>;
+};
+
+export const computeTransactionSummary = (transactions?: any[] | null): TransactionSummaryResult => {
+  const perCustomer: Record<string, CustomerTransactionSummary> = {};
+  let totalSales = 0;
+  let totalCollections = 0;
+  let outstanding = 0;
+
+  (transactions || []).forEach((txn: any) => {
+    if (!txn) return;
+    const customerId = txn.customer_id || "__unknown";
+    if (!perCustomer[customerId]) {
+      perCustomer[customerId] = {
+        totalSales: 0,
+        totalCollections: 0,
+        outstanding: 0,
+        transactions: 0,
+      };
+    }
+
+    const entry = perCustomer[customerId];
+    const amount = Number(txn.amount ?? 0) || 0;
+    const paidAmount = Number(txn.paid_amount ?? 0) || 0;
+    const balance = Number(txn.balance ?? 0) || 0;
+    const type = String(txn.type || "").toLowerCase();
+
+    if (type === "payment") {
+      entry.totalCollections += amount;
+      totalCollections += amount;
+    } else {
+      entry.totalSales += amount;
+      entry.totalCollections += paidAmount;
+      totalSales += amount;
+      totalCollections += paidAmount;
+    }
+
+    entry.outstanding += balance;
+    outstanding += balance;
+    entry.transactions += 1;
+  });
+
+  Object.keys(perCustomer).forEach((key) => {
+    perCustomer[key] = {
+      ...perCustomer[key],
+      outstanding: Math.max(perCustomer[key].outstanding, 0),
+    };
+  });
+
+  return {
+    totals: {
+      totalSales,
+      totalCollections,
+      outstanding: Math.max(outstanding, 0),
+    },
+    perCustomer,
+  };
+};

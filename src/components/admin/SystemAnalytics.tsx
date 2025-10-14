@@ -3,12 +3,15 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { TrendingUp } from "lucide-react";
 import { useAnalytics, useCustomers, useTransactions } from "@/lib/hooks";
 import { useMemo } from "react";
+import { computeTransactionSummary } from "@/lib/utils";
 
 const SystemAnalytics = () => {
   const { data: analytics, isLoading } = useAnalytics();
 
   const { data: customers } = useCustomers();
   const { data: transactions } = useTransactions();
+  const transactionSummary = useMemo(() => computeTransactionSummary(transactions), [transactions]);
+  const hasTransactionData = Array.isArray(transactions);
 
   const chartData = useMemo(() => {
     const map = new Map<string, { sales: number; collections: number; orders: number; payments: number }>();
@@ -92,9 +95,9 @@ const SystemAnalytics = () => {
       .slice(0, 3);
   }, [customers, transactions]);
 
-  const totalCollections = Number(analytics?.totalCollections || 0);
-  const totalSales = Number(analytics?.totalSales || 0);
-  const outstanding = Number(analytics?.outstanding || 0);
+  const totalCollections = hasTransactionData ? transactionSummary.totals.totalCollections : Number(analytics?.totalCollections || 0);
+  const totalSales = hasTransactionData ? transactionSummary.totals.totalSales : Number(analytics?.totalSales || 0);
+  const outstanding = hasTransactionData ? transactionSummary.totals.outstanding : Number(analytics?.outstanding || 0);
   const collectionRate = totalSales ? ((totalCollections / totalSales) * 100) : 0;
   const avgSaleValue = Number(analytics?.avgSaleValue || 0);
   const lastSaleAt = analytics?.lastSaleAt ? new Date(analytics.lastSaleAt).toLocaleString() : "—";

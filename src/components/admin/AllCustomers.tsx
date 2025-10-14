@@ -2,19 +2,47 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Users, Edit, Trash } from "lucide-react";
-import { useCustomers, useUpdateCustomer, useDeleteCustomer } from "@/lib/hooks";
+import { useCustomers, useUpdateCustomer, useDeleteCustomer, useTransactions } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { computeTransactionSummary } from "@/lib/utils";
 
 const AllCustomers = () => {
   const { data, isLoading, isError, error } = useCustomers();
+  const { data: transactions } = useTransactions();
   const updateCustomer = useUpdateCustomer();
   const deleteCustomer = useDeleteCustomer();
   const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
+
+  const transactionSummary = useMemo(() => computeTransactionSummary(transactions), [transactions]);
+
+  const customerSummaries = useMemo(() => {
+    const perCustomer = transactionSummary.perCustomer;
+
+    return (data || []).map((customer: any) => {
+      const aggregates = perCustomer[customer.id ?? ""] || {
+        totalSales: Number(customer.total_purchases ?? 0) || 0,
+        totalCollections: 0,
+        outstanding: Number(customer.outstanding_balance ?? 0) || 0,
+        transactions: 0,
+      };
+
+      return {
+        ...customer,
+        totalSales: aggregates.totalSales,
+        totalCollections: aggregates.totalCollections,
+        outstandingCalculated: Math.max(
+          Number(customer.outstanding_balance ?? 0) || 0,
+          Number(aggregates.outstanding ?? 0) || 0,
+          0
+        ),
+      };
+    });
+  }, [data, transactionSummary]);
 
   return (
     <Card>
@@ -44,7 +72,7 @@ const AllCustomers = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(data || []).map((customer: any) => (
+                {(customerSummaries || []).map((customer: any) => (
                   <TableRow key={customer.id}>
                   <TableCell className="font-medium">
                     {editingId === customer.id ? (
@@ -67,14 +95,14 @@ const AllCustomers = () => {
                       customer.contact
                     )}
                   </TableCell>
-                  <TableCell className="text-right">₹{Number(customer.total_purchases || 0).toFixed(2)}</TableCell>
+                  <TableCell className="text-right">₹{Number(customer.totalSales || 0).toFixed(2)}</TableCell>
                   <TableCell className="text-right">
-                    <span className={Number(customer.outstanding_balance || 0) > 0 ? "text-destructive font-semibold" : ""}>
-                      ₹{Number(customer.outstanding_balance || 0).toFixed(2)}
+                    <span className={Number(customer.outstandingCalculated || 0) > 0 ? "text-destructive font-semibold" : ""}>
+                      ₹{Number(customer.outstandingCalculated || 0).toFixed(2)}
                     </span>
                   </TableCell>
                   <TableCell>
-                    {Number(customer.outstanding_balance || 0) > 0 ? (
+                    {Number(customer.outstandingCalculated || 0) > 0 ? (
                       <Badge variant="destructive">Pending</Badge>
                     ) : (
                       <Badge variant="default" className="bg-success">Clear</Badge>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,30 +6,83 @@ import { Label } from "@/components/ui/label";
 import { Leaf, Users, TrendingUp, AlertCircle, LogOut, Database, IndianRupee } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AllCustomers from "@/components/admin/AllCustomers";
 import AllTransactions from "@/components/admin/AllTransactions";
 import SystemAnalytics from "@/components/admin/SystemAnalytics";
 import TeaAnalytics from "@/components/admin/TeaAnalytics";
 import BatchList from "@/components/common/BatchList";
 import ManageBatches from "@/components/common/ManageBatches";
-import { useAnalytics, usePartnerContactSetting, useResetAll, useResetToday, useSavePartnerContactSetting } from "@/lib/hooks";
+import {
+  useAnalytics,
+  useBatchPnl,
+  useCustomers,
+  usePartnerContactSetting,
+  useResetAll,
+  useResetToday,
+  useSavePartnerContactSetting,
+  useTransactions,
+} from "@/lib/hooks";
 import { useToast } from "@/hooks/use-toast";
+import { buildCollectionBreakdown, buildOutstandingBreakdown, buildPnlBreakdown } from "@/lib/analytics-breakdown";
 import {
   clearStoredUser,
+  computeTransactionSummary,
   formatPhoneForDisplay,
+  formatReadableDate,
   getPartnerContactNumber,
   getStoredUser,
   normalizePhoneNumber,
   setPartnerContactNumber,
 } from "@/lib/utils";
+import { sendReminderForCustomer } from "@/lib/reminder-actions";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
   const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics();
+  const { data: transactions } = useTransactions();
   const analytics = analyticsData;
   const netPnl = analytics ? Number(analytics.totalPnl || 0) : 0;
   const isPnlPositive = netPnl >= 0;
+
+  const transactionSummary = useMemo(() => computeTransactionSummary(transactions), [transactions]);
+  const hasTransactionData = Array.isArray(transactions);
+
+  const totalSalesValue = hasTransactionData ? transactionSummary.totals.totalSales : Number(analytics?.totalSales || 0);
+  const totalCollectionsValue = hasTransactionData ? transactionSummary.totals.totalCollections : Number(analytics?.totalCollections || 0);
+  const totalOutstandingValue = hasTransactionData ? transactionSummary.totals.outstanding : Number(analytics?.outstanding || 0);
+  const { data: customers } = useCustomers();
+  const { data: batchPnl, isLoading: batchPnlLoading } = useBatchPnl();
+
+  const [activeModal, setActiveModal] = useState<"collections" | "outstanding" | "pnl" | null>(null);
+  const [reminderSendingId, setReminderSendingId] = useState<string | null>(null);
+
+  const { details: collectionDetails, summary: collectionSummary } = useMemo(
+    () => buildCollectionBreakdown(transactions, customers),
+    [transactions, customers],
+  );
+
+  const outstandingDetails = useMemo(
+    () => buildOutstandingBreakdown(transactionSummary, transactions, customers),
+    [transactionSummary, transactions, customers],
+  );
+
+  const pnlBreakdown = useMemo(() => buildPnlBreakdown(batchPnl, transactions), [batchPnl, transactions]);
+  const averageProfitPerKg = useMemo(() => {
+    if (!pnlBreakdown.rows.length || pnlBreakdown.totals.soldQuantity === 0) {
+      return null;
+    }
+
+    const totalWeightedProfit = pnlBreakdown.rows.reduce((sum, row) => {
+      if (row.profitPerKg == null) return sum;
+      return sum + row.profitPerKg * row.soldQuantity;
+    }, 0);
+
+    return totalWeightedProfit / pnlBreakdown.totals.soldQuantity;
+  }, [pnlBreakdown]);
 
   const sessionUser = getStoredUser();
   const [partnerContact, setPartnerContact] = useState("");
@@ -116,6 +169,38 @@ const AdminDashboard = () => {
         description: err?.message || "Failed to remove the partner contact number.",
         variant: "destructive",
       });
+    }
+  };
+
+  const closeModal = () => setActiveModal(null);
+  const interactiveCardClass =
+    "cursor-pointer transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
+
+  const handleSendReminder = async (entry: {
+    customerId: string;
+    customer: any;
+    customerName: string;
+    outstanding: number;
+  }) => {
+    if (!entry.customer) {
+      toast({
+        title: "Customer record missing",
+        description: "Add this customer to the directory before sending reminders.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setReminderSendingId(entry.customerId);
+    try {
+      await sendReminderForCustomer({
+        customer: entry.customer,
+        outstandingAmount: entry.outstanding,
+        partnerContact: normalizedCurrent || partnerContactFromDb || null,
+        toast,
+      });
+    } finally {
+      setReminderSendingId(null);
     }
   };
 
@@ -233,7 +318,7 @@ const AdminDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{analytics ? Number(analytics.totalSales || 0).toFixed(2) : "0.00"}</div>
+              <div className="text-2xl font-bold">₹{Number(totalSalesValue || 0).toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">Orders: {analytics ? Number(analytics.salesCount || 0) : 0}</p>
             </CardContent>
           </Card>
@@ -251,7 +336,18 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveModal("collections")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setActiveModal("collections");
+              }
+            }}
+            className={interactiveCardClass}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
                 <TrendingUp className="h-4 w-4 mr-2" />
@@ -259,12 +355,24 @@ const AdminDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{analytics ? Number(analytics.totalCollections || 0).toFixed(2) : "0.00"}</div>
+              <div className="text-2xl font-bold">₹{Number(totalCollectionsValue || 0).toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">Payments: {analytics ? Number(analytics.paymentsCount || 0) : 0}</p>
+              <p className="text-xs text-primary mt-2">View breakdown</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveModal("outstanding")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setActiveModal("outstanding");
+              }
+            }}
+            className={interactiveCardClass}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
                 <AlertCircle className="h-4 w-4 mr-2" />
@@ -272,8 +380,9 @@ const AdminDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{analytics ? Number(analytics.outstanding || 0).toFixed(2) : "0.00"}</div>
+              <div className="text-2xl font-bold">₹{Number(totalOutstandingValue || 0).toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">Pending collection</p>
+              <p className="text-xs text-primary mt-2">View customers</p>
             </CardContent>
           </Card>
 
@@ -303,7 +412,18 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveModal("pnl")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setActiveModal("pnl");
+              }
+            }}
+            className={interactiveCardClass}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
                 <IndianRupee className="h-4 w-4 mr-2" />
@@ -317,9 +437,320 @@ const AdminDashboard = () => {
               <p className="text-xs text-muted-foreground mt-1">
                 {isPnlPositive ? "All-time profit across recorded sales" : "Overall loss relative to purchase cost"}
               </p>
+              <p className="text-xs text-primary mt-2">Inspect batches</p>
             </CardContent>
           </Card>
         </div>
+
+        <Dialog
+          open={activeModal === "collections"}
+          onOpenChange={(open) => {
+            if (open) {
+              setActiveModal("collections");
+            } else {
+              closeModal();
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Total Collections Breakdown</DialogTitle>
+              <DialogDescription>
+                Track which customers have paid and the teas associated with their payments.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <p className="text-muted-foreground">Total collected</p>
+                  <p className="font-semibold">
+                    ₹
+                    {(
+                      collectionDetails.length > 0
+                        ? collectionSummary.totalAmount
+                        : Number(totalCollectionsValue || 0)
+                    ).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Contributing customers</p>
+                  <p className="font-semibold">{collectionSummary.customersCount}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Recorded payments</p>
+                  <p className="font-semibold">{collectionSummary.paymentCount}</p>
+                </div>
+              </div>
+
+              {collectionDetails.length > 0 ? (
+                <ScrollArea className="max-h-[60vh] pr-2">
+                  <div className="space-y-4">
+                    {collectionDetails.map((entry) => (
+                      <div key={entry.customerId} className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="font-semibold leading-tight">{entry.customerName}</p>
+                            {entry.customer?.shop_name && (
+                              <p className="text-xs text-muted-foreground">Shop: {entry.customer.shop_name}</p>
+                            )}
+                          </div>
+                          <div className="text-sm font-semibold text-emerald-600">
+                            ₹{entry.totalPaid.toFixed(2)}
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Tea</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead className="text-right">Selling Price</TableHead>
+                                <TableHead className="text-right">Paid</TableHead>
+                                <TableHead className="text-right">Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {entry.payments.map((payment) => (
+                                <TableRow key={payment.id}>
+                                  <TableCell>{formatReadableDate(payment.createdAt)}</TableCell>
+                                  <TableCell className="max-w-[160px] truncate text-muted-foreground">
+                                    {payment.teaName || "—"}
+                                  </TableCell>
+                                  <TableCell>
+                                    {payment.quantity != null && payment.quantity !== 0
+                                      ? `${payment.quantity} kg`
+                                      : "—"}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {payment.saleAmount != null
+                                      ? `₹${payment.saleAmount.toFixed(2)}`
+                                      : "—"}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">₹{payment.amount.toFixed(2)}</TableCell>
+                                  <TableCell
+                                    className={`text-right text-xs font-semibold ${
+                                      payment.status === "full paid"
+                                        ? "text-emerald-600"
+                                        : payment.status === "partial left"
+                                          ? "text-destructive"
+                                          : "text-amber-600"
+                                    }`}
+                                  >
+                                    {payment.status
+                                      .split(" ")
+                                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                                      .join(" ")}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No collection data available yet. Come back after recording a sale or payment.
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={activeModal === "outstanding"}
+          onOpenChange={(open) => {
+            if (open) {
+              setActiveModal("outstanding");
+            } else {
+              closeModal();
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Outstanding Dues</DialogTitle>
+              <DialogDescription>
+                Review pending balances and nudge customers directly from this view.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <p className="text-muted-foreground">Total outstanding</p>
+                  <p className="font-semibold text-destructive">₹{Number(totalOutstandingValue || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Customers due</p>
+                  <p className="font-semibold">{outstandingDetails.length}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Ready for reminders</p>
+                  <p className="font-semibold">{outstandingDetails.filter((item) => Boolean(item.customer)).length}</p>
+                </div>
+              </div>
+
+              {outstandingDetails.length > 0 ? (
+                <ScrollArea className="max-h-[60vh] pr-2">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Customer</TableHead>
+                        <TableHead className="text-right">Outstanding</TableHead>
+                        <TableHead>Next due</TableHead>
+                        <TableHead>Last activity</TableHead>
+                        <TableHead className="text-right">Reminder</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {outstandingDetails.map((entry) => (
+                        <TableRow key={entry.customerId}>
+                          <TableCell className="align-top">
+                            <div className="space-y-1">
+                              <p className="font-medium leading-tight">{entry.customerName}</p>
+                              {entry.customer?.shop_name && (
+                                <p className="text-xs text-muted-foreground">Shop: {entry.customer.shop_name}</p>
+                              )}
+                              {entry.phone && (
+                                <p className="text-xs text-muted-foreground">WhatsApp: {formatPhoneForDisplay(entry.phone) || entry.phone}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-destructive">
+                            ₹{entry.outstanding.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            {entry.nextDue ? formatReadableDate(entry.nextDue) : "—"}
+                          </TableCell>
+                          <TableCell>{entry.lastActivity ? formatReadableDate(entry.lastActivity) : "—"}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleSendReminder(entry)}
+                              disabled={reminderSendingId === entry.customerId || !entry.customer}
+                            >
+                              {reminderSendingId === entry.customerId ? "Preparing…" : "Send Reminder"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground">Great news! There are no pending balances right now.</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={activeModal === "pnl"}
+          onOpenChange={(open) => {
+            if (open) {
+              setActiveModal("pnl");
+            } else {
+              closeModal();
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Total P&L Overview</DialogTitle>
+              <DialogDescription>
+                Compare profit and loss across tea batches to understand what's working.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <p className="text-muted-foreground">Net P&L</p>
+                  <p className={`font-semibold ${isPnlPositive ? "text-emerald-600" : "text-destructive"}`}>
+                    ₹{netPnl.toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Batches tracked</p>
+                  <p className="font-semibold">{pnlBreakdown.rows.length}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Total sold quantity</p>
+                  <p className="font-semibold">{pnlBreakdown.totals.soldQuantity.toFixed(2)} kg</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Avg profit per kg</p>
+                  <p
+                    className={`font-semibold ${
+                      averageProfitPerKg == null
+                        ? ""
+                        : averageProfitPerKg >= 0
+                          ? "text-emerald-600"
+                          : "text-destructive"
+                    }`}
+                  >
+                    {averageProfitPerKg != null ? `₹${averageProfitPerKg.toFixed(2)}` : "—"}
+                  </p>
+                </div>
+              </div>
+
+              {batchPnlLoading ? (
+                <p className="text-sm text-muted-foreground">Loading batch performance…</p>
+              ) : pnlBreakdown.rows.length > 0 ? (
+                <ScrollArea className="max-h-[60vh] pr-2">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12 text-right">#</TableHead>
+                        <TableHead>Batch</TableHead>
+                        <TableHead className="text-right">Sold (kg)</TableHead>
+                        <TableHead className="text-right">Remaining (kg)</TableHead>
+                        <TableHead className="text-right">Purchase ₹/kg</TableHead>
+                        <TableHead className="text-right">Profit ₹/kg</TableHead>
+                        <TableHead className="text-right">P&L</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pnlBreakdown.rows.map((row, index) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="text-right text-xs text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium">{row.name}</TableCell>
+                          <TableCell className="text-right">{row.soldQuantity.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{row.remainingQuantity.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">₹{row.purchaseRate.toFixed(2)}</TableCell>
+                          <TableCell
+                            className={`text-right font-medium ${
+                              row.profitPerKg == null
+                                ? "text-muted-foreground"
+                                : row.profitPerKg > 0
+                                  ? "text-emerald-600"
+                                  : row.profitPerKg < 0
+                                    ? "text-destructive"
+                                    : ""
+                            }`}
+                          >
+                            {row.profitPerKg != null ? `₹${row.profitPerKg.toFixed(2)}` : "—"}
+                          </TableCell>
+                          <TableCell className={`text-right font-semibold ${row.pnl >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                            ₹{row.pnl.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  P&L breakdown will appear after you start tracking tea batches.
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <div className="mb-6">
           <div className="flex items-center justify-end">
