@@ -1,76 +1,74 @@
-# Welcome to your Lovable project
+# Kadak चाह — Chronicle Hub
 
-## Project info
+Kadak चाह is our premium tea experience—a bold brew with a warm, letter-style personality that infuses every customer touchpoint. This repository keeps the brand’s digital presence cohesive so partners, admins, and customers interact with the same comforting story in every flow.
 
-**URL**: https://lovable.dev/projects/178dbc1d-9ac4-4ac8-b860-97e2156c0069
+## About the brand
 
-## How can I edit this code?
+- **Purpose:** Celebrate everyday tea rituals with a luxurious, handcrafted feel.
+- **Voice:** Friendly, refined, and steeped in hospitality—each interaction should feel like sharing a favourite cup with a trusted host.
+- **Focus:** Equip partners with smart tools (analytics, reminders, exports) while spotlighting the Kadak चाह identity.
 
-There are several ways of editing your application.
+## Working with this repository
 
-**Use Lovable**
+### Edit locally and push to GitHub
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/178dbc1d-9ac4-4ac8-b860-97e2156c0069) and start prompting.
+```powershell
+# Clone once (if you haven't already)
+git clone https://github.com/khanraaz68001-art/kadak_chah.git
+cd kadak_chah
 
-Changes made via Lovable will be committed automatically to this repo.
+# Check what changed after your edits
+git status
 
-**Use your preferred IDE**
+# Stage the files you touched
+git add README.md
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+# Commit with a meaningful message
+git commit -m "docs: refresh brand story"
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Push the branch to GitHub
+git push origin main
 ```
 
-**Edit a file directly in GitHub**
+Made another tweak? Repeat the last three commands (`git status`, `git add`, `git commit`, `git push`). Collaborating with someone else? Pull the latest updates first:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```powershell
+git pull origin main
+```
 
-**Use GitHub Codespaces**
+### Prefer editing online?
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Use the GitHub web editor: open the file, click the pencil icon, edit, and commit.
+- Launch a Codespace from the **Code** button for a cloud IDE that’s preconfigured for React + Vite.
+
+## Development quickstart
+
+This app uses Vite, React, TypeScript, Tailwind CSS, and shadcn-ui. Make sure Node.js and npm are installed (we recommend [nvm](https://github.com/nvm-sh/nvm#installing-and-updating)).
+
+```sh
+# Install dependencies
+npm i
+
+# Start the dev server with hot reloading
+npm run dev
+
+# Optional checks before committing
+npm run lint
+npm run build
+```
 
 ## What technologies are used for this project?
-
-This project is built with:
 
 - Vite
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (optional backend)
 
-## How can I deploy this project?
+## Deployment
 
-Simply open [Lovable](https://lovable.dev/projects/178dbc1d-9ac4-4ac8-b860-97e2156c0069) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Deploy to any static host that supports Vite builds (Netlify, Vercel, Cloudflare Pages, etc.). Run `npm run build` and upload the `dist/` folder. If you prefer Lovable’s workflow, open the [Lovable project dashboard](https://lovable.dev/projects/178dbc1d-9ac4-4ac8-b860-97e2156c0069) and publish from there.
 
 ## Supabase integration (local dev)
 
@@ -93,24 +91,26 @@ npm run dev
 
 Suggested minimal table schemas (run in Supabase SQL editor):
 
+```sql
 -- customers
 CREATE TABLE customers (
-	id uuid primary key default gen_random_uuid(),
-	full_name text,
-	shop_name text,
-	address text,
-	contact text,
-	created_at timestamp with time zone default now()
+    id uuid primary key default gen_random_uuid(),
+    full_name text,
+    shop_name text,
+    address text,
+    contact text,
+    created_at timestamp with time zone default now()
 );
 
 -- transactions
 CREATE TABLE transactions (
-	id uuid primary key default gen_random_uuid(),
-	customer_id uuid references customers(id) on delete set null,
-	amount numeric,
-	type text,
-	created_at timestamp with time zone default now()
+    id uuid primary key default gen_random_uuid(),
+    customer_id uuid references customers(id) on delete set null,
+    amount numeric,
+    type text,
+    created_at timestamp with time zone default now()
 );
+```
 
 Once the env vars are set, the app will initialize a Supabase client at runtime and you can replace the mock data with real queries.
 
