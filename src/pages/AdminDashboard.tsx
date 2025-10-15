@@ -452,7 +452,7 @@ const AdminDashboard = () => {
             }
           }}
         >
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-3xl sm:max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Total Collections Breakdown</DialogTitle>
               <DialogDescription>
@@ -483,7 +483,7 @@ const AdminDashboard = () => {
               </div>
 
               {collectionDetails.length > 0 ? (
-                <ScrollArea className="max-h-[60vh] pr-2">
+                <ScrollArea className="h-[60vh] pr-2">
                   <div className="space-y-4">
                     {collectionDetails.map((entry) => (
                       <div key={entry.customerId} className="rounded-lg border border-border/60 bg-muted/20 p-4">
@@ -571,7 +571,7 @@ const AdminDashboard = () => {
             }
           }}
         >
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-3xl sm:max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Outstanding Dues</DialogTitle>
               <DialogDescription>
@@ -595,7 +595,7 @@ const AdminDashboard = () => {
               </div>
 
               {outstandingDetails.length > 0 ? (
-                <ScrollArea className="max-h-[60vh] pr-2">
+                <ScrollArea className="h-[60vh] pr-2">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -659,7 +659,7 @@ const AdminDashboard = () => {
             }
           }}
         >
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-3xl sm:max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Total P&L Overview</DialogTitle>
               <DialogDescription>
@@ -701,7 +701,7 @@ const AdminDashboard = () => {
               {batchPnlLoading ? (
                 <p className="text-sm text-muted-foreground">Loading batch performance…</p>
               ) : pnlBreakdown.rows.length > 0 ? (
-                <ScrollArea className="max-h-[60vh] pr-2">
+                <ScrollArea className="h-[60vh] pr-2">
                   <Table>
                     <TableHeader>
                       <TableRow>

@@ -221,7 +221,7 @@ export const PartnerDashboardHome = () => {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Collections Breakdown</DialogTitle>
             <DialogDescription>
@@ -252,7 +252,7 @@ export const PartnerDashboardHome = () => {
             </div>
 
             {collectionDetails.length > 0 ? (
-              <ScrollArea className="max-h-[60vh] pr-2">
+              <ScrollArea className="h-[60vh] pr-2">
                 <div className="space-y-4">
                   {collectionDetails.map((entry) => (
                     <div key={entry.customerId} className="rounded-lg border border-border/60 bg-muted/20 p-4">
@@ -340,7 +340,7 @@ export const PartnerDashboardHome = () => {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Outstanding Customers</DialogTitle>
             <DialogDescription>
@@ -364,7 +364,7 @@ export const PartnerDashboardHome = () => {
             </div>
 
             {outstandingDetails.length > 0 ? (
-              <ScrollArea className="max-h-[60vh] pr-2">
+              <ScrollArea className="h-[60vh] pr-2">
                 <Table>
                   <TableHeader>
                     <TableRow>

@@ -116,6 +116,16 @@ export const sendReminderMessage = async ({
     return { via: "skipped", ok: false, reason: "missing-recipient" };
   }
 
+  const trimmedMessage = (message ?? "").trim();
+  const messageWithFooter = [
+    trimmedMessage,
+    trimmedMessage ? "" : null,
+    "With regards,",
+    "Kadak चाह",
+  ]
+    .filter((line) => typeof line === "string" && line.length > 0)
+    .join("\n");
+
   const webhookUrl = import.meta.env.VITE_REMINDER_WEBHOOK_URL;
   const webhookSecret = import.meta.env.VITE_REMINDER_WEBHOOK_SECRET;
   const shouldUseWebhook = Boolean(webhookUrl && auto);
@@ -127,7 +137,7 @@ export const sendReminderMessage = async ({
 
   const payload = {
     to: normalizedRecipient,
-    message,
+    message: messageWithFooter,
     partnerNumber: partnerNumber ?? null,
     auto,
   };
@@ -151,7 +161,7 @@ export const sendReminderMessage = async ({
     }
 
     if (typeof window !== "undefined") {
-      const encodedMessage = encodeURIComponent(message);
+      const encodedMessage = encodeURIComponent(messageWithFooter);
       const whatsappUrl = `https://wa.me/${normalizedRecipient}?text=${encodedMessage}`;
       window.open(whatsappUrl, "_blank", "noopener,noreferrer");
       return { via: "whatsapp-link", ok: true };
