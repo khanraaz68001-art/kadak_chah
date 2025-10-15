@@ -117,14 +117,30 @@ export const sendReminderMessage = async ({
   }
 
   const trimmedMessage = (message ?? "").trim();
-  const messageWithFooter = [
-    trimmedMessage,
-    trimmedMessage ? "" : null,
-    "With regards,",
-    "Kadak चाह",
-  ]
-    .filter((line) => typeof line === "string" && line.length > 0)
-    .join("\n");
+  const sanitizedLines = trimmedMessage
+    ? trimmedMessage
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+    : [];
+
+  const recentSignatureFragment = sanitizedLines.slice(-2).join(" ").toLowerCase();
+  const alreadySigned = recentSignatureFragment.includes("regards") && recentSignatureFragment.includes("kadak");
+
+  const messageLines: string[] = [];
+
+  if (trimmedMessage) {
+    messageLines.push(trimmedMessage);
+  }
+
+  if (!alreadySigned) {
+    if (trimmedMessage) {
+      messageLines.push("");
+    }
+    messageLines.push("With regards,", "Kadak चाह");
+  }
+
+  const messageWithFooter = messageLines.join("\n");
 
   const webhookUrl = import.meta.env.VITE_REMINDER_WEBHOOK_URL;
   const webhookSecret = import.meta.env.VITE_REMINDER_WEBHOOK_SECRET;
