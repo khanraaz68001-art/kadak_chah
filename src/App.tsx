@@ -19,6 +19,7 @@ import ManageCustomers from "@/components/partner/ManageCustomers";
 import CreateBatch from "@/components/partner/CreateBatch";
 import ManageBatches from "@/components/common/ManageBatches";
 import RequireRole from "@/components/auth/RequireRole";
+import SiteFooter from "@/components/common/SiteFooter";
 
 const queryClient = new QueryClient();
 
@@ -37,37 +38,42 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/partner/login" element={<PartnerLogin />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route
-              path="/partner/dashboard"
-              element={(
-                <RequireRole role="partner">
-                  <PartnerDashboard />
-                </RequireRole>
-              )}
-            >
-              <Route index element={<PartnerDashboardHome />} />
-              <Route path="register" element={<RegisterCustomer />} />
-              <Route path="sale" element={<NewSale />} />
-              <Route path="payment" element={<CollectPayment />} />
-              <Route path="reports" element={<DownloadReports />} />
-              <Route path="manage" element={<ManageCustomers />} />
-              <Route path="create-batch" element={<CreateBatch />} />
-              <Route path="manage-batches" element={<ManageBatches />} />
-            </Route>
-            <Route
-              path="/admin/dashboard"
-              element={(
-                <RequireRole role="admin">
-                  <AdminDashboard />
-                </RequireRole>
-              )}
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <div className="flex min-h-screen flex-col bg-background">
+            <main className="flex-1">
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/partner/login" element={<PartnerLogin />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route
+                  path="/partner/dashboard"
+                  element={(
+                    <RequireRole role="partner">
+                      <PartnerDashboard />
+                    </RequireRole>
+                  )}
+                >
+                  <Route index element={<PartnerDashboardHome />} />
+                  <Route path="register" element={<RegisterCustomer />} />
+                  <Route path="sale" element={<NewSale />} />
+                  <Route path="payment" element={<CollectPayment />} />
+                  <Route path="reports" element={<DownloadReports />} />
+                  <Route path="manage" element={<ManageCustomers />} />
+                  <Route path="create-batch" element={<CreateBatch />} />
+                  <Route path="manage-batches" element={<ManageBatches />} />
+                </Route>
+                <Route
+                  path="/admin/dashboard"
+                  element={(
+                    <RequireRole role="admin">
+                      <AdminDashboard />
+                    </RequireRole>
+                  )}
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </main>
+            <SiteFooter />
+          </div>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
